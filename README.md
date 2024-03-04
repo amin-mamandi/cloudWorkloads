@@ -1,3 +1,3 @@
 # cloudWorkloads
 
-Credits goes to Huy Tran! 
+Credit goes to Huy Tran! 
