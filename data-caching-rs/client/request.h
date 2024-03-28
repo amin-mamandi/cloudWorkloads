@@ -83,8 +83,6 @@ struct request{
 
 struct request* createRequest(int requestType, struct conn* conn, struct worker* worker, char* key, char* value, int type);
 void sendRequest(struct request* request);
-void tcpSendRequest(struct request* request);
-void udpSendRequest(struct request* request);
 void unixSocketSendRequest(struct request* request);
 void receiveRequest(struct request* request);
 void deleteRequest(struct request* request);

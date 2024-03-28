@@ -6,34 +6,8 @@
 
 void sendRequest(struct request* request) {
 
-  //Send out all requests (only one unless multiget
- //// printf("entered sendRequest\n");
   struct request* sendRequest = request;
-  if(request->connection->protocol == TCP_MODE){
-    tcpSendRequest(sendRequest);
-  } else if(request->connection->protocol == UDP_MODE){ 
-    printf("UDP not working\n"); 
-    exit(-1);
-    udpSendRequest(sendRequest);
-  } else if (request->connection->protocol == UNIX_SOCKET_MODE) {
-      unixSocketSendRequest(sendRequest);
-  } else {
-      printf("Undefined protocol\n");
-      exit(-1);
-  }
-  //struct request* sendRequest = request;
-  //while(sendRequest != NULL) {
-  ////  printf("request op %d\n", sendRequest->header.opcode);
-  //  if(request->connection->protocol == TCP_MODE){
-  //    tcpSendRequest(sendRequest);
-  //  } else if(request->connection->protocol == UDP_MODE){
-  //    udpSendRequest(sendRequest);
-  //  } else {
-  //    printf("Undefined protocol\n");
-  //    exit(-1);
-  //  }
-  //  sendRequest = sendRequest->next_request;
-  //}//End while
+  unixSocketSendRequest(sendRequest);
 
 }//End sendRequest()
 
@@ -64,130 +38,6 @@ void unixSocketSendRequest(struct request* request) {
     
 }
   
-void tcpSendRequest(struct request* request) {
-  
-  //printf("tcpSendRequest\n");
-  struct request* sendRequest = request;
-
-#ifdef GEM5
-      m5_work_begin(sendRequest->header.opcode, sendRequest->header.opaque); 
-#endif
-
-  if(request->bad_multiget) {
-
-    while(sendRequest != NULL) {
-      int totalSize = sendRequest->value_size + sendRequest->key_size + sendRequest->header.extras_length + sizeof(struct request_header);
-      
-      char* oneBigPacket = malloc(sizeof(char) * totalSize);
-      char* ptr = oneBigPacket;
-
-      memcpy(ptr, (char *) (& sendRequest->header), sizeof(struct request_header));
-      ptr += sizeof(struct request_header);
-
-      memcpy(ptr, sendRequest->extras, sendRequest->header.extras_length);
-      ptr += sendRequest->header.extras_length;
-
-      memcpy(ptr, sendRequest->key, sendRequest->key_size);
-      ptr += sendRequest->key_size;
-
-      memcpy(ptr, sendRequest->value, sendRequest->value_size);
-
-      gettimeofday(&request->send_time, NULL);
-      writeBlock(request->connection->sock, oneBigPacket, totalSize);
-
-      free(oneBigPacket);
-
-      sendRequest = sendRequest->next_request;
-    }
-
-  } else { 
-    
-    int totalSize = 0;
-    while(sendRequest != NULL) {
-      totalSize += sendRequest->value_size + sendRequest->key_size + sendRequest->header.extras_length + sizeof(struct request_header);
-      sendRequest = sendRequest->next_request;
-    }
-    
-    char* oneBigPacket = malloc(sizeof(char) * totalSize);
-    char* ptr = oneBigPacket;
-
-    sendRequest = request;
-    while(sendRequest != NULL) {
-      memcpy(ptr, (char *) (& sendRequest->header), sizeof(struct request_header));
-      ptr += sizeof(struct request_header);
-
-      memcpy(ptr, sendRequest->extras, sendRequest->header.extras_length);
-      ptr += sendRequest->header.extras_length;
-
-      memcpy(ptr, sendRequest->key, sendRequest->key_size);
-      ptr += sendRequest->key_size;
-
-      memcpy(ptr, sendRequest->value, sendRequest->value_size);
-      sendRequest = sendRequest->next_request;
-    }
-
-    gettimeofday(&request->send_time, NULL);
-    writeBlock(request->connection->sock, oneBigPacket, totalSize);
-
-    free(oneBigPacket);
-  }
-
-}//End tcpSendRequest
-
-//Each UDP datagram contains a simple frame header, followed by data in the
-//same format as the TCP protocol described above. In the current
-//implementation, requests must be contained in a single UDP datagram, but
-//responses may span several datagrams. (The only common requests that would
-//span multiple datagrams are huge multi-key "get" requests and "set"
-//requests, both of which are more suitable to TCP transport for reliability
-//reasons anyway.)
-//
-//The frame header is 8 bytes long, as follows (all values are 16-bit integers
-//in network byte order, high byte first):
-//
-//0-1 Request ID
-//2-3 Sequence number
-//4-5 Total number of datagrams in this message
-//6-7 Reserved for future use; must be 0
-void udpSendRequest(struct request* request) {
-
- int totalSize = request->value_size + request->key_size + request->header.extras_length + sizeof(struct request_header) + 8;
-
- char* oneBigPacket = malloc(totalSize);
- char* ptr = oneBigPacket;
-
- int requestId = request->worker->current_request_id;
- request->id = requestId;
- request->worker->current_request_id = (requestId + 1) % 0xFFFF;
-
- oneBigPacket[0] = (char)(requestId & 0xFFFF) >> 16;
- oneBigPacket[1] = (char)(requestId & 0xFF);
- oneBigPacket[2] = 0x00;
- oneBigPacket[3] = 0x00;
- oneBigPacket[4] = 0x00;
- oneBigPacket[5] = 0x01;
- oneBigPacket[6] = 0x00;
- oneBigPacket[7] = 0x00;
-
- ptr += 8;
-
- memcpy(ptr, (char *) (& request->header), sizeof(struct request_header));
- ptr += sizeof(struct request_header);
-
- memcpy(ptr, request->extras, request->header.extras_length);
- ptr += request->header.extras_length;
-
- memcpy(ptr, request->key, request->key_size);
- ptr += request->key_size;
-
- memcpy(ptr, request->value, request->value_size);
-
- int fd = request->connection->sock;
- gettimeofday(&request->send_time, NULL);
- writeBlock(fd, oneBigPacket, totalSize);
- free(oneBigPacket);
-
-}//End udpSendRequest()
 
 void deleteRequest(struct request* request) {
 
@@ -249,7 +99,6 @@ struct request* createRequest(int requestType, struct conn* conn, struct worker*
   if(value != NULL) {
     valueLength = strlen(value);
   } 
-
   if(valueLength > MAX_VALUE_LENGTH) {
     printf("The value is too long!\nvalue: %s\nlength: %d\n", value, valueLength);
   }

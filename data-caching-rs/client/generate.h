@@ -7,7 +7,7 @@
 #include <malloc.h>
 #include <math.h> 
 
-#define MAX_KEY_SIZE 250
+#define MAX_KEY_SIZE 30
 #define CDF_VALUES 10000
 //#define ALPHA 0.915
 

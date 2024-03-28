@@ -59,12 +59,12 @@ struct key_list* generateKeys(struct config* config) {
 
     int i;
     for( i = 0; i < keyList->n_keys; i++ ){ 
-        int keySize = randomFunction() % MAX_KEY_SIZE;
+        int keySize =  30;
         while(keySize <= 1){
-            keySize = randomFunction() % MAX_KEY_SIZE;
+            keySize = 30;
         }
         keyList->keys[i] = randomString(keySize);
-        //printf("i: %d key: %s\n", i, keyList->keys[i]);
+        // printf("i: %d key: %s\n", i, keyList->keys[i]);
     }//End for i
 
     return keyList;
@@ -75,20 +75,23 @@ struct dep_entry* getRandomDepEntry(struct dep_dist* dep_dist, struct worker* wo
 
     double cdf_to_lookup = parRandomFunction(worker);
     //Do a binary search
-    int top = 0;
-    int bottom = dep_dist->n_entries-1;
-    int current = bottom/2;
+    // int top = 0;
+    int entries = dep_dist->n_entries-1;
+    // generate a random number between 0 to entries 
+    // int bottom = entries;
+    // int current = bottom/2;
+    int current = rand() % entries;
     struct dep_entry* dep_entry = NULL;
-    while(top != bottom){
-        dep_entry = dep_dist->dep_entries[current];
-        //    printf("top %d bottom %d current %d lookup %f cdf %f\n", top, bottom, current, cdf_to_lookup, dep_entry->cdf);
-        if( dep_entry->cdf > cdf_to_lookup){
-            bottom = current;
-        } else {
-            top = current + 1;
-        }
-        current = (bottom-top)/2 + top;
-    }
+    // while(top != bottom){
+    //     dep_entry = dep_dist->dep_entries[current];
+    //     //    printf("top %d bottom %d current %d lookup %f cdf %f\n", top, bottom, current, cdf_to_lookup, dep_entry->cdf);
+    //     if( dep_entry->cdf > cdf_to_lookup){
+    //         bottom = current;
+    //     } else {
+    //         top = current + 1;
+    //     }
+    //     current = (bottom-top)/2 + top;
+    // }
 
     //  printf("top %d bottom %d current %d lookup %f cdf %f\n", top, bottom, current, cdf_to_lookup, dep_entry->cdf);
     dep_entry = dep_dist->dep_entries[current];
@@ -180,7 +183,73 @@ double harmonicSum(int size, double alpha){
         sum+= (1.0 / pow(1.0*i, alpha));
     return sum;
 }
+
+
+struct dep_dist* createDepFile(struct config* config){
+    struct dep_dist* dist = malloc(sizeof(struct dep_dist));
+    int lines = config->n_keys;
+    dist->dep_entries = malloc(sizeof(struct dep_entry*)*lines);
+    dist->n_entries = lines;
+    int i = lines-1;
+    double avg_size=0;
+    for(i = 0; i < lines; i++){
+        struct dep_entry* entry = malloc(sizeof(struct dep_entry));
+        entry->cdf = 1.0/lines*(i+1);
+        entry->size = 200;
+        int keySize = 30;
+        char* newKey = randomString(keySize);
+        strcpy(entry->key, newKey);
+        dist->dep_entries[i] = entry;
+        avg_size+=entry->size;
+    }
+    // store the dist in a file
+
+    FILE* fileOut = fopen(config->output_file, "w");
+    printf("Output file: %s\n", config->output_file);
+    for(i = 0; i < lines; i++){
+        struct dep_entry* entry = dist->dep_entries[i];
+        fprintf(fileOut, "%15.13f,  %d, %s\n", entry->cdf, entry->size, entry->key); 
+    }
+    fclose(fileOut);
+    
+    avg_size = avg_size/lines;
+    config->keysToPreload = floor(1024.0*1024*config->server_memory/(avg_size+150));
+    if(config->keysToPreload>lines) config->keysToPreload=lines-1;
+    return dist;    
+}
 struct dep_dist* loadDepFile(struct config* config) { 
+
+    // struct dep_dist* dist = malloc(sizeof(struct dep_dist));
+    // int lines = config->n_keys;
+    // dist->dep_entries = malloc(sizeof(struct dep_entry*)*lines);
+    // dist->n_entries = lines;
+    // int i = lines-1;
+    // double avg_size=0;
+    // for(i = 0; i < lines; i++){
+    //     struct dep_entry* entry = malloc(sizeof(struct dep_entry));
+    //     entry->cdf = 1.0/lines*(i+1);
+    //     entry->size = 200;
+    //     int keySize = 30;
+    //     char* newKey = randomString(keySize);
+    //     strcpy(entry->key, newKey);
+    //     dist->dep_entries[i] = entry;
+    //     avg_size+=entry->size;
+    // }
+    // // store the dist in a file
+    // if (config->pre_load){
+    //     FILE* fileOut = fopen(config->output_file, "w");
+    //     printf("Output file: %s\n", config->output_file);
+    //     for(i = 0; i < lines; i++){
+    //         struct dep_entry* entry = dist->dep_entries[i];
+    //         fprintf(fileOut, "%15.13f,  %d, %s\n", entry->cdf, entry->size, entry->key); 
+    //     }
+    //     fclose(fileOut);
+    // }
+    // avg_size = avg_size/lines;
+    // config->keysToPreload = floor(1024.0*1024*config->server_memory/(avg_size+150));
+    // if(config->keysToPreload>lines) config->keysToPreload=lines-1;
+    // return dist;    
+
 
     printf("Loading key value file...");
     struct dep_dist* dist = malloc(sizeof(struct dep_dist));
@@ -246,6 +315,7 @@ struct dep_dist* loadAndScaleDepFile(struct config* config) {
     double avg_size=0.0; 
     while (fgets(lineBuffer, sizeof(lineBuffer), file)) {
         if(config->distribution == SCALED_TWITTER){
+            printf("Scaled Twitter\n");
             char* cdfValue = strtok(lineBuffer, " ,\n");
             char* sizeValue = strtok(NULL, " ,\n");
             struct dep_entry* entry = malloc(sizeof(struct dep_entry));
@@ -253,8 +323,7 @@ struct dep_dist* loadAndScaleDepFile(struct config* config) {
             entry->cdf = prev-(oldPrev-temp)*ratio;
             oldPrev=temp;
             entry->size = atoi(sizeValue);
-            int keySize = randomFunction() % MAX_KEY_SIZE;
-            while(keySize <= 1) keySize = randomFunction() % MAX_KEY_SIZE;
+            int keySize = 30;
             char* newKey = randomString(keySize);
             strcpy(entry->key, newKey);
             dist->dep_entries[i] = entry;
@@ -264,7 +333,8 @@ struct dep_dist* loadAndScaleDepFile(struct config* config) {
             avg_size+=entry->size; 	
         }
         else if(config->distribution == PURE_ZIPFIAN){
-            char* cdfValue = strtok(lineBuffer, " ,\n"); // it is necessary to correctly parse sizeValue
+            printf("Pure Zipfian\n");
+            // char* cdfValue = strtok(lineBuffer, " ,\n"); // it is necessary to correctly parse sizeValue
             char* sizeValue = strtok(NULL, " ,\n");
             struct dep_entry* entry = malloc(sizeof(struct dep_entry));
             double w = (1.0/pow(newLines-i, config->ALPHA))/sum2;
@@ -290,6 +360,7 @@ struct dep_dist* loadAndScaleDepFile(struct config* config) {
     printf("Keys to Preload = %d\n", config->keysToPreload ); 
     while(i>=0){
         if(config->distribution == SCALED_TWITTER){
+            printf("Scaled Twittersss\n");
             struct dep_entry* entry = malloc(sizeof(struct dep_entry));
             entry->cdf = prev-(1.0/pow(newLines-i, config->ALPHA))/sum2; 
             entry->size = dist->dep_entries[lines+i]->size;
@@ -304,6 +375,8 @@ struct dep_dist* loadAndScaleDepFile(struct config* config) {
             if(entry->cdf<0) printf("cdf=%10.8f\n", entry->cdf);
         }
         else if(config->distribution == PURE_ZIPFIAN){
+            printf("pure zipfinannn\n");
+
             struct dep_entry* entry = malloc(sizeof(struct dep_entry));
             double w = (1.0/pow(newLines-i, config->ALPHA))/sum2;
             entry->cdf = prev;
@@ -350,8 +423,11 @@ struct request* generateRequest(struct config* config, struct worker* worker) {
             worker->warmup_key_check++;
             key = dep_entry->key;
             valueSize = dep_entry->size;
+            // AMIN
+            valueSize = 200;
             if(config->randomValue){
                 value = parRandomString(valueSize, worker);
+                // printf("**Picked key %d size %d\n", worker->warmup_key, valueSize);
             }
             else{
                 value = malloc(sizeof(char) * valueSize);
@@ -361,13 +437,15 @@ struct request* generateRequest(struct config* config, struct worker* worker) {
             int op = SET;
             int type = TYPE_SET;
             struct request* request;
-            //printf("Picked key %d size %d\n", worker->warmup_key, valueSize);
+            // print
+            // printf("Picked key %d size %d\n", worker->warmup_key, valueSize);
             request = createRequest(op, conn, worker, key, value,type);
             request->next_request = NULL;
             return request;
 
         } else { 
             dep_entry = getRandomDepEntry(config->dep_dist, worker);
+            // printf("####Generate key %s \n", dep_entry->key);
         }
         key = dep_entry->key;
         valueSize = dep_entry->size;
@@ -460,8 +538,10 @@ struct request* generateRequest(struct config* config, struct worker* worker) {
         //It's a set
         op = SET;
         //Create a value
+        printf("value size %d\n", valueSize);
         if(config->dep_dist == NULL){
             if(config->fixed_size > 0) {
+                printf("fixed size %d\n", config->fixed_size);
                 valueSize = config->fixed_size;
             } else {
                 valueSize = getIntQuantile(config->value_size_dist);
@@ -473,6 +553,7 @@ struct request* generateRequest(struct config* config, struct worker* worker) {
         }
         if(config->randomValue){
             value = parRandomString(valueSize, worker);
+            // printf("##Picked key %d size %d\n", worker->warmup_key, valueSize);
         }
         else{
             value = malloc(sizeof(char) * valueSize);

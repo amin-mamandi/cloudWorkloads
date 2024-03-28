@@ -11,6 +11,6 @@ fi
 if [ "$1" = "net" ]; then
     taskset -c "$2" memcached -m 23040 -p 11211 -l $3 
 elif [ "$1" = "skt" ]; then
-    taskset -c "$2" memcached -s /tmp/memcached.sock -m 23040 
+    taskset -c "$2" memcached -s /tmp/memcached.sock -m 512 
 fi
 

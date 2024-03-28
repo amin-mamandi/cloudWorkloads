@@ -20,5 +20,6 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
-
+testOut*
+depFile*
 twitter_dataset_*

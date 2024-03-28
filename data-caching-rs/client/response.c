@@ -15,17 +15,9 @@ void receiveResponse(struct request* request, double difftime) {
     } else {
       finalRequest = 0;
     }
-    if(request->connection->protocol == TCP_MODE){
-      // printf("receiving request final? %d\n", finalRequest);
-      notFound = tcpReceiveResponse(request,finalRequest, difftime);
-    } else if(request->connection->protocol == UDP_MODE){
-      notFound = udpReceiveResponse(request,finalRequest, difftime);
-    } else if(request->connection->protocol == UNIX_SOCKET_MODE) {
-      notFound = unixSocketReceiveResponse(request, finalRequest, difftime);
-    } else {
-      printf("Undefined protocol\n");
-      exit(-1);
-    }
+
+    notFound = unixSocketReceiveResponse(request, finalRequest, difftime);
+
     currentRequest = currentRequest->next_request;
   }//End while()
 
@@ -79,137 +71,6 @@ int unixSocketReceiveResponse(struct request* request, int final, double difftim
 
   return notFound;
 }
-
-int udpReceiveResponse(struct request* request, int final, double difftime) {
-
-  #define MAX_DATAGRAM_SIZE 2048
-
-  int readSize = MAX_DATAGRAM_SIZE*sizeof(char);
-  char* dataGramBuffer = malloc(readSize);
-  int fd = request->connection->sock;
-
-  int nRead = read(fd, dataGramBuffer, readSize);
-  if(nRead > MAX_DATAGRAM_SIZE){
-    printf("Datagram is too big\n");
-    exit(-1);
-  }
-
-  char* ptr = dataGramBuffer;
-  char udpHeader[8];
-  memcpy(&udpHeader, ptr, 8);
-  ptr += 8;
-
-  struct response_header response_header;
-  memcpy(&response_header, ptr, sizeof(struct response_header));
-  ptr += sizeof(struct response_header);
-
-  int extrasSize = (int) response_header.extras_length;
-
-  int keySize = 0;
-  keySize |= response_header.key_length[1];
-  keySize |= response_header.key_length[0] << 8;
-
-  int bodySize = 0;
-  bodySize |= response_header.total_body_length[3]&0xFF;
-  bodySize |= (response_header.total_body_length[2]&0xFF) <<8;
-  bodySize |= (response_header.total_body_length[1]&0xFF) <<16;
-  bodySize |= (response_header.total_body_length[0]&0xFF) <<24;
-
-  int valueSize = bodySize - keySize - extrasSize;
-
-  char* extras = malloc(extrasSize);
-  char* key = malloc(keySize+1);
-  char* value = malloc(valueSize+1);
-
-  memcpy(extras, ptr, sizeof(extrasSize));
-  ptr += sizeof(extrasSize);
-  memcpy(key, ptr, sizeof(keySize));
-  ptr += sizeof(keySize);
-  memcpy(value, ptr, sizeof(valueSize));
-  ptr += sizeof(valueSize);
-
-
-  key[keySize] = '\0';
-  value[valueSize] = '\0';
-
-  struct response response;
-  response.request = request;
-  response.value_size = valueSize;
-  response.response_header = response_header;
-  int notFound = processResponse(&response,final, difftime);
-
-  free(extras);
-  free(key);
-  free(value);
-
-
-  free(dataGramBuffer);
-
-  return notFound;
-
-}//End udpReceiveResponse()
-
-
-int tcpReceiveResponse(struct request* request, int final, double difftime) {
-
-  struct response_header response_header;
-  int fd = request->connection->sock;
-  readBlock(fd, &response_header, sizeof(response_header));
-
-  //Check the magic number is correct
-  if(response_header.magic != MAGIC_RESPONSE) {
-    printf("On read Incorrect magic number: %x should be: %x\n", response_header.magic, MAGIC_RESPONSE);
-    exit(-1);
-  }
-#ifdef GEM5
-  m5_work_end(response_header.opcode, response_header.opaque);
-#endif
-
-#ifdef FLEXUS
-  if(request->request_type == TYPE_GET)
-    MAGIC2(211, request->header.opaque);
-  else if(request->request_type==TYPE_SET)
-    MAGIC2(221,request->header.opaque);	
-#endif
-
-  int extrasSize = (int) response_header.extras_length;
-
-  int keySize = 0;
-  keySize |= response_header.key_length[1];
-  keySize |= response_header.key_length[0] << 8;
-
-  int bodySize = 0;
-  bodySize |= response_header.total_body_length[3]&0xFF;
-  bodySize |= (response_header.total_body_length[2]&0xFF) <<8;
-  bodySize |= (response_header.total_body_length[1]&0xFF) <<16;
-  bodySize |= (response_header.total_body_length[0]&0xFF) <<24;
-
-  int valueSize = bodySize - keySize - extrasSize;
-
-  char* extras = malloc(extrasSize);
-  char* key = malloc(keySize+1);
-  char* value = malloc(valueSize+1);
-  readBlock(fd, extras, extrasSize);
-  readBlock(fd, key, keySize);
-  key[keySize] = '\0';
-
-  readBlock(fd, value, valueSize);
-
-  value[valueSize] = '\0';
-  struct response response;
-  response.request = request;
-  response.value_size = valueSize;
-  response.response_header = response_header;
-  int notFound = processResponse(&response, final, difftime);
-
-  free(extras);
-  free(key);
-  free(value);
-   
-  return notFound;
-
-}//End tcpReceiveRequest()
-
 
 
 int processResponse(struct response* response, int final, double difftime){

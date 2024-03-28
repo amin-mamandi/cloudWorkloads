@@ -28,8 +28,6 @@ struct conn {
 };
 
 struct conn* createConnection(const char* ip_address, int port, int protocol, int naggles);
-int openTcpSocket(const char* ipAddress, int port);
-int openUdpSocket(const char* ipAddress, int port);
 int openUnixSocket(const char* socketPath);
 
 #endif

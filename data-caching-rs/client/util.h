@@ -15,7 +15,7 @@ struct worker;
 void writeBlock(int fd, void* buffer, int writeSize);
 void readBlock(int fd, void* buffer, int readSize);
 
-char* nslookup(char* hostname);
+// char* nslookup(char* hostname);
 void timingTests();
 void timestampTest();
 void lockTest();

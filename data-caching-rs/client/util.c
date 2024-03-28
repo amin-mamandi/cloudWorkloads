@@ -80,32 +80,32 @@ void timestampTest() {
 }
 
 //Translate a hostname to an IP address
-char* nslookup(char* hostname){
+// char* nslookup(char* hostname){
 
-  struct hostent* host_info = 0 ;
-  int attempt;
-  for( attempt=0 ; (host_info==0) && (attempt<3) ; ++attempt ) {
-    host_info = gethostbyname(hostname) ;
-  }
+//   struct hostent* host_info = 0 ;
+//   int attempt;
+//   for( attempt=0 ; (host_info==0) && (attempt<3) ; ++attempt ) {
+//     host_info = gethostbyname(hostname) ;
+//   }
 
-  char* ip_address;
-  if(host_info){
+//   char* ip_address;
+//   if(host_info){
 
-    struct in_addr * address = (struct in_addr * )host_info->h_addr;
-    ip_address = inet_ntoa(* address);
+//     struct in_addr * address = (struct in_addr * )host_info->h_addr;
+//     ip_address = inet_ntoa(* address);
 
-    printf("host: %s\n", host_info->h_name);
-    printf("address: %s\n",ip_address);
+//     printf("host: %s\n", host_info->h_name);
+//     printf("address: %s\n",ip_address);
 
-  } else {
-    printf("DNS error\n");
-    // exit(-1);
-  }
+//   } else {
+//     printf("DNS error\n");
+//     // exit(-1);
+//   }
 
-  //pretty sure i should free something here... 
-  return ip_address;
+//   //pretty sure i should free something here... 
+//   return ip_address;
 
-}//End nslookup
+// }//End nslookup
 
 void writeBlock(int fd, void* buffer, int writeSize) {
 

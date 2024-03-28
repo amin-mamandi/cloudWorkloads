@@ -4,7 +4,7 @@
 void* workerFunction(void* arg) {
 
   struct worker* worker = arg;
-  printf("Creating worker on tid %u\n", (unsigned int)pthread_self());
+  // printf("Creating worker on tid %u\n", (unsigned int)pthread_self());
 
 
 /*  int s;
@@ -64,7 +64,7 @@ void workerLoop(struct worker* worker) {
     printf("No events registered with libevent\n");
   }
 
-  printf("base loop done\n");
+  // printf("base loop done\n");
 
 }//End workerLoop()
 
@@ -214,14 +214,14 @@ void createWorkers(struct config* config) {
   }
 
   if(config->n_workers > config->n_connections_total ) {
-    printf("Overridge n_connections_total because < n_workers\n");
+    // printf("Overridge n_connections_total because < n_workers\n");
     config->n_connections_total = config->n_workers;
   }
 
   int total_connections = 0;
   for(i = 0; i < config->n_workers; i++) {
     int num_worker_connections = config->n_connections_total/config->n_workers + (i < config->n_connections_total % config->n_workers);
-    printf("num_worker_connections %d\n", num_worker_connections);
+    // printf("num_worker_connections %d\n", num_worker_connections);
     total_connections += num_worker_connections;
     config->workers[i]->connections = malloc(sizeof(struct conn*) * num_worker_connections);
     config->workers[i]->nConnections = num_worker_connections;
@@ -238,7 +238,7 @@ void createWorkers(struct config* config) {
       printf("Error creating receive thread\n");
     }
   }
-  printf("Created %d connections total\n", total_connections);
+  // printf("Created %d connections total\n", total_connections);
 
 
 }//createWorkers()
@@ -260,6 +260,7 @@ struct worker* createWorker(struct config* config, int cpuNum) {
   worker->incr_fix_queue_tail = 0; // THSES probably need to be fixed
   worker->incr_fix_queue_head = 0;
   if(config->dep_dist != NULL && config->pre_load) {
+    printf("preloading\n");
     worker->warmup_key = config->keysToPreload-1;
     worker->warmup_key_check = 0;
   }

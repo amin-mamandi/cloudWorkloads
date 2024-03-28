@@ -47,7 +47,7 @@ struct config* parseArgs(int argc, char** argv) {
 
   int ncpus = sysconf(_SC_NPROCESSORS_ONLN);
   config->n_cpus = ncpus;
-  config->protocol_mode = TCP_MODE;
+  config->protocol_mode = UNIX_SOCKET_MODE;
   config->n_workers = 1;
   config->n_servers = 1;
   config->scaling_factor = 0;
@@ -227,6 +227,7 @@ struct config* parseArgs(int argc, char** argv) {
         break;
 
       case 'Z':
+        printf("Using pure Zipfian distribution\n");
         config->distribution = PURE_ZIPFIAN;
         break;
 
@@ -241,78 +242,30 @@ struct config* parseArgs(int argc, char** argv) {
 }//End parseArgs()
 
 void loadServerFile(struct config* config){
-  FILE* file = fopen(config->server_file, "r");
-  if(file==NULL){
-    printf("File %s does not exist!\n", config->server_file);
-    exit(1);	
-  }
-  char lineBuffer[1024]; 
-  int i=0;
 
   if (config->protocol_mode == UNIX_SOCKET_MODE) {
-    // fgets(lineBuffer, sizeof(lineBuffer), file);
-    // char* socketPath = strtok(lineBuffer, " ,\n");    
-    // config->server_socket_path[i] = calloc(strlen(socketPath) + 1, sizeof(char));
-    // strcpy(config->server_socket_path[i], socketPath);
-    i = 1;
-    //printf("Socket path\n");
-    //printf("Loaded %d servers\n", i);
-    fclose(file);
-    config->n_servers=i;
+    config->n_servers=1;
     return;
   }
   else {
-    //printf("IP address\n");
-    while (fgets(lineBuffer, sizeof(lineBuffer), file)) {
-      char* ipaddress = nslookup(strtok(lineBuffer, " ,\n"));
-      config->server_port[i]=atoi(strtok(NULL, " ,\n"));
-      config->server_ip_address[i]=calloc(strlen(ipaddress)+1, sizeof(char));
-      strcpy(config->server_ip_address[i], ipaddress);   
-      i++;
-      //printf("Loaded %d servers\n", i);
-    }
+    exit(1);
   }
-  //printf("Loaded %d servers\n", i);
-  fclose(file);
-  config->n_servers=i;
 }
 
-//Prints the configuration
-void printConfiguration(struct config* config) {
-
-  printf("Configuration:\n");
-  printf("\n");
-  printf("nProcessors on system: %d\n", config->n_cpus);
-  printf("nWorkers: %d\n", config->n_workers);
-  printf("runtime: %d\n", config->run_time);
-
-//  printf("Connecterions per worker: %d\n",  config->n_connections_per_worker);
-  if(config->fixed_size > 0){
-    printf("Fixed value size: %d\n", config->fixed_size);
-  }
-  printf("Get fraction: %f\n", config->get_frac);
-  if(config->naggles){
-    printf("Naggle's algorithm: True\n");
-  } else {
-    printf("Naggle's algorithm: False\n");
-  }
-  printf("\n\n");
-
-}//End printConfiguration()
 
 void setupLoad(struct config* config) {
 
-  if(config->input_file==NULL){
-   printf("Option '-a' is mandatory and requires an argument\n");
-   exit(-1);	
-  }
+  // if(config->input_file==NULL){
+  //  printf("Option '-a' is mandatory and requires an argument\n");
+  //  exit(-1);	
+  // }
 
   if(config->server_file==NULL){
     printf("Option '-s' is mandatory and requires a server configuration file as an argument\n");
     exit(-1);	
   }
   loadServerFile(config);
-  printf("Loaded server file\n");
+  // printf("Loaded server file\n");
 
   if(config->n_workers % config->n_servers != 0){
    printf("Number of client (worker) threads must be divisible by the number of servers\n");
@@ -324,17 +277,16 @@ void setupLoad(struct config* config) {
    exit(-1);	
   }
 
-  if(!config->pre_load || (config->scaling_factor==1)) {
-              printf("her2e\n");
-
-    config->dep_dist = loadDepFile(config);
-              printf("her23e\n");
-
-    }
-  else {
-    config->dep_dist = loadAndScaleDepFile(config);
-
+  if(config->pre_load) {
+    config->dep_dist = createDepFile(config);
   }
+  else {
+    config->dep_dist = loadDepFile(config);
+  }
+  // else {
+  //   config->dep_dist = loadAndScaleDepFile(config);
+
+  // }
   
 
   if(config->value_size_dist == NULL){
@@ -342,7 +294,6 @@ void setupLoad(struct config* config) {
   }
   if(config->key_pop_dist == NULL){
     config->key_pop_dist = createUniformDistribution(0, config->n_keys -1);
-    printf("created uniform distribution %d\n", config->n_keys);
   } else {
     config->n_keys = CDF_VALUES;
   }
@@ -352,12 +303,8 @@ void setupLoad(struct config* config) {
     config->multiget_dist = createUniformDistribution(2, 10);
   }
 
-  printf("rps %d cpus %d\n", config->rps, config->n_workers);
-  if (config->rps == -1 || config->rps == 0)
-      return;
 
   int meanInterarrival = 1.0/(((float)config->rps)/(float)config->n_workers)*1e6;
-  printf("meanInterarrival %d\n", meanInterarrival);
   if(config->arrival_distribution_type == ARRIVAL_CONSTANT) {
     config->interarrival_dist = createConstantDistribution(meanInterarrival);
   } else {
@@ -384,7 +331,7 @@ void cleanUp(struct config* config) {
 int main(int argc, char** argv){
   
   struct config* config = parseArgs(argc, argv);
-  printConfiguration(config);
+  // printConfiguration(config);
 
   setupLoad(config);
   createWorkers(config);
